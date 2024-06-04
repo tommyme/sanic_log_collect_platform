@@ -5,10 +5,16 @@ from tortoise.models import Model
 
 class LogRecords(Model):
     id = fields.IntField(pk=True)
-    name = fields.TextField()
+    chip = fields.TextField()
+    version = fields.TextField()
+    exectime = fields.TextField()
+    case = fields.TextField()
+    iter = fields.TextField()
+    logger = fields.TextField()
+    level = fields.TextField()
 
     def __str__(self):
-        return self.name
+        return self.chip
 
     class Meta:
         app = "mainApp"
