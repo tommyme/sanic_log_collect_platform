@@ -3,6 +3,9 @@ import sanic
 from sanic.response import text as TEXT, json as JSON
 from models.logModel import LogRecords
 import copy
+from tortoise import run_async
+from db_handle import db_init
+run_async(db_init())
 
 @app.get("/get")    # query
 async def some_get(request: sanic.Request):
