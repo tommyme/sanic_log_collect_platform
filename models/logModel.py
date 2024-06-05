@@ -7,8 +7,9 @@ class LogRecords(Model):
     id = fields.IntField(pk=True)
     chip = fields.CharField(10)
     version = fields.CharField(10)
-    exectime = fields.DateField()
+    exectime = fields.CharField(30)
     case = fields.CharField(100)
+
     iter = fields.IntField()
     logger = fields.TextField()
     level = fields.CharField(10)
@@ -27,4 +28,7 @@ class LogRecordsFields:
     query_needed_fields = copy.copy(LogRecords._meta.fields)
     query_needed_fields.remove("id")
     query_needed_fields.remove("content")
+    query_needed_fields.remove("logger")
+    query_needed_fields.remove("level")
+    query_needed_fields.remove("iter")
     
