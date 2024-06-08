@@ -6,6 +6,7 @@ import copy
 from tortoise import run_async
 from db_handle import db_init
 import json
+import time
 run_async(db_init())
 
 def get_lake_keys(data: dict, needed_fields):
@@ -32,11 +33,14 @@ async def some_get(request: sanic.Request):
 
 @app.post('/addLog')  # body json query
 async def some_post(request: sanic.Request):
+    st = time.time()
     json_data: dict = request.json
     lake_keys, query = query_build(json_data, LogRecordsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys})
     await LogRecords.create(**query)
+    ed = time.time()
+    print(ed - st)
     return JSON({"res": "succ"})
 
 @app.get("/logs")
@@ -78,17 +82,31 @@ async def get_sel(request: sanic.Request):
         return JSON(res)
     return JSON({'res': 'err'}, 400)
 
+from dataclasses import dataclass
+
+@dataclass
+class CtrlOpts:
+    len: int
+    offset: int
+
+def get_ctrl_opt(src: dict):
+    res = {}
+    keys = list(src.keys())
+    for k in keys:
+        if k.startswith("__"):
+            res[k[2:]] = src.pop(k)
+    opt = CtrlOpts(**res)
+    return opt
 
 @app.websocket('/websocket')
 async def do_websocket(request: sanic.Request, ws: sanic.Websocket):
     async for msg in ws:
-        try:
-            req = json.loads(msg)
-            lake_keys, query = query_build_trust(req, LogRecordsFields.query_needed_fields)
-            if lake_keys:
-                raise Exception("lake of keys")
-            res = await LogRecords.filter(**query).values()
-            ws.send(json.dumps(res))
-        except:
-            continue
-        await ws.send(msg)
+        req = json.loads(msg)
+        # req有__len __offset这两个field用于控制
+        ctrl_opt = get_ctrl_opt(req)
+        # 这里使用trust可以让前端发送请求的时候携带一些query的高级参数 目前还没有用到这个特性
+        lake_keys, query = query_build_trust(req, LogRecordsFields.query_needed_fields)
+        if lake_keys:
+            raise Exception("lake of keys")
+        res = await LogRecords.filter(**query).offset(ctrl_opt.offset).limit(ctrl_opt.len).values_list("content", flat=True)
+        await ws.send(json.dumps(res))
