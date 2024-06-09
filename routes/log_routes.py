@@ -67,8 +67,10 @@ def check(keys):
         return ['logger']
     elif keys == {'chip', 'version', 'exectime', 'case', 'iter', 'logger'}:
         return ['level']
-    else:
+    elif keys == {'chip', 'version', 'exectime', 'case', 'iter', 'logger', 'level'}:
         return []
+    else:
+        return None
 
 
 @app.post("/sel")
@@ -76,11 +78,19 @@ async def get_sel(request: sanic.Request):
     json_data = request.json
     keys = set(json_data.keys())
     if retKeys:=check(keys):
-        res = {}
+        res = []
         for k in retKeys:
-            res[k] = await LogRecords.filter(**json_data).distinct().values_list(k, flat=True)
+            qry_res = await LogRecords.filter(**json_data).distinct().values(k)
+            qry_res = [{"value":i, "label": i[k]} for i in qry_res]
+            res += qry_res
         return JSON(res)
-    return JSON({'res': 'err'}, 400)
+    elif retKeys is None:
+        return JSON({'res': 'err'}, 400)
+    elif retKeys == []:
+        return JSON([])
+    else:
+        return JSON({'res': 'err'}, 400)
+
 
 from dataclasses import dataclass
 
