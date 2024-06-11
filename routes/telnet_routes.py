@@ -90,7 +90,16 @@ async def telnet(request, ws):
 
 @app.post('/script/update')
 async def script_update(request: sanic.Request):
-    pass
+    # 用id改
+    json_data: dict = request.json
+    lake_keys, query = query_build(json_data, ScriptRecordsFields.create_needed_fields)
+    if lake_keys:
+        return JSON({"lake of keys": lake_keys}, 400)
+    script = await ScriptRecords.get(id=json_data['id'])
+    script.update_from_dict(query)
+    await script.save()
+
+    return JSON({'res': "succ"})
 
 @app.post('/script/add')
 async def script_add(request: sanic.Request):
