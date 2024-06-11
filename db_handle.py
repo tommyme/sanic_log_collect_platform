@@ -13,7 +13,7 @@ async def db_init():
                 },
             },
             "apps": {
-                "mainApp": {"models": ["models.logModel"], "default_connection": "mainAppConn"},
+                "mainApp": {"models": ["models.logModel", "models.scriptModel"], "default_connection": "mainAppConn"},
                 # "events": {"models": ["__main__"], "default_connection": "second"},
             },
         }

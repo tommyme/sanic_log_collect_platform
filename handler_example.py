@@ -58,7 +58,7 @@ data = {
     "iter": 0,
 }
 handler = HttpLogHandler(
-    "http://127.0.0.1:8000/addLog",
+    "http://127.0.0.1:8000/addLog", data=data
 )
 handler.setFormatter(default_color_fmter)
 logger.addHandler(handler)

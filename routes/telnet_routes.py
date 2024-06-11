@@ -10,6 +10,7 @@ import sanic
 import time
 from utils.index import query_build, query_build_trust
 from models.scriptModel import ScriptRecords, ScriptRecordsFields
+# run_async(db_init())
 
 
 class telnetManager:
@@ -107,6 +108,11 @@ async def script_query(request: sanic.Request):
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
     res = await ScriptRecords.filter(**query).values()
+    return JSON(res)
+
+@app.post('/script/all')
+async def script_all(request: sanic.Request):
+    res = await ScriptRecords.all().values()
     return JSON(res)
 
 @app.post('/script/del')
