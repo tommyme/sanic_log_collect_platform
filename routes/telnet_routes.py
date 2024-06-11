@@ -113,6 +113,7 @@ async def script_query(request: sanic.Request):
 @app.post('/script/all')
 async def script_all(request: sanic.Request):
     res = await ScriptRecords.all().values()
+    res = [{"value": i, "label": i['name']} for i in res]
     return JSON(res)
 
 @app.post('/script/del')
