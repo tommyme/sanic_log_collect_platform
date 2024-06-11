@@ -9,7 +9,9 @@ import asyncio
 import sanic
 import time
 from utils.index import query_build, query_build_trust
-from models.scriptModel import ScriptRecords, ScriptRecordsFields
+from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords
+from tortoise.contrib.pydantic import pydantic_model_creator
+
 # run_async(db_init())
 
 
@@ -92,10 +94,10 @@ async def telnet(request, ws):
 async def script_update(request: sanic.Request):
     # 用id改
     json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ScriptRecordsFields.create_needed_fields)
+    lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    script = await ScriptRecords.get(id=json_data['id'])
+    script = await ProfileRecords.get(id=json_data['id'])
     script.update_from_dict(query)
     await script.save()
 
@@ -104,10 +106,10 @@ async def script_update(request: sanic.Request):
 @app.post('/script/add')
 async def script_add(request: sanic.Request):
     json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ScriptRecordsFields.create_needed_fields)
+    lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    await ScriptRecords.create(**query)
+    await ProfileRecords.create(**query)
     return JSON({"res": "succ"})
 
 @app.post('/script/query')
@@ -116,13 +118,26 @@ async def script_query(request: sanic.Request):
     lake_keys, query = query_build(json_data, ['name'])
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    res = await ScriptRecords.filter(**query).values()
+    res = await ProfileRecords.filter(**query).values()
     return JSON(res)
 
-@app.post('/script/all')
+@app.post('/script/allProfiles')
+async def profile_all(request: sanic.Request):
+    # xxbb = pydantic_model_creator(ProfileRecords, name="xxbb", include=("id", "name", "scripts"))
+    # xxx = await xxbb.from_queryset(ProfileRecords.all())
+    # x = xxx[0].model_dump()
+    # res = [{"value": i, "label": i['name']} for i in res]
+    res = await ProfileRecords.all().values()
+    return JSON(res)
+
+@app.post("/script/allScripts")
 async def script_all(request: sanic.Request):
-    res = await ScriptRecords.all().values()
-    res = [{"value": i, "label": i['name']} for i in res]
+    json_data: dict = request.json
+    lake_keys, query = query_build(json_data, ['name'])
+    if lake_keys:
+        return JSON({"lake of keys": lake_keys}, 400)
+    profile = await ProfileRecords.get(**query)
+    res = await ScriptsRecords.filter(id=profile.id).values()
     return JSON(res)
 
 @app.post('/script/del')
@@ -131,5 +146,5 @@ async def script_del(request: sanic.Request):
     lake_keys, query = query_build(json_data, ['name'])
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    await ScriptRecords.delete(**query)
+    await ProfileRecords.delete(**query)
     return JSON({"res": "succ"})

@@ -1,12 +1,12 @@
 from tortoise import Tortoise, connections, fields, run_async
 from tortoise.exceptions import OperationalError
 from tortoise.models import Model
+import copy
 
 
-class ScriptRecords(Model):
+class ProfileRecords(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(50, unique=True)
-    content = fields.TextField()
     host = fields.CharField(30)
     port = fields.CharField(10)
 
@@ -16,7 +16,22 @@ class ScriptRecords(Model):
     class Meta:
         app = "mainApp"
 
-import copy
-class ScriptRecordsFields:
-    create_needed_fields = copy.copy(ScriptRecords._meta.fields)
+class ScriptsRecords(Model):
+    id = fields.IntField(pk=True)
+    sname = fields.CharField(50, unique=True)
+    content = fields.TextField()
+    profile = fields.ForeignKeyField('mainApp.ProfileRecords', related_name='scripts')
+
+    def __str__(self):
+        return self.sname
+    
+    class Meta:
+        app = "mainApp"
+
+class ScriptsFields:
+    create_needed_fields = copy.copy(ScriptsRecords._meta.fields)
+    create_needed_fields.remove("id")
+
+class ProfileRecordsFields:
+    create_needed_fields = copy.copy(ProfileRecords._meta.fields)
     create_needed_fields.remove("id")
