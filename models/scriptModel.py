@@ -17,7 +17,7 @@ class ProfileRecords(Model):
         app = "mainApp"
 
 class ScriptsRecords(Model):
-    id = fields.IntField(pk=True)
+    sid = fields.IntField(pk=True)
     sname = fields.CharField(50, unique=True)
     content = fields.TextField()
     profile = fields.ForeignKeyField('mainApp.ProfileRecords', related_name='scripts')
@@ -30,7 +30,7 @@ class ScriptsRecords(Model):
 
 class ScriptsFields:
     create_needed_fields = copy.copy(ScriptsRecords._meta.fields)
-    create_needed_fields.remove("id")
+    create_needed_fields.remove("sid")
 
 class ProfileRecordsFields:
     create_needed_fields = copy.copy(ProfileRecords._meta.fields)

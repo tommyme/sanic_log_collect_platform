@@ -97,10 +97,17 @@ async def script_update(request: sanic.Request):
     lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    script = await ProfileRecords.get(id=json_data['id'])
+    profile = await ProfileRecords.get(id=json_data['id'])
+    profile.update_from_dict(query)
+    await profile.save()
+    lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
+    if lake_keys:
+        return JSON({"lake of keys": lake_keys}, 400)
+    scripts = await profile.scripts.filter(sid=json_data['sid'])
+    script = scripts[0]
+    query.pop('profile')
     script.update_from_dict(query)
     await script.save()
-
     return JSON({'res': "succ"})
 
 @app.post('/script/add')
@@ -137,7 +144,7 @@ async def script_all(request: sanic.Request):
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
     profile = await ProfileRecords.get(**query)
-    res = await ScriptsRecords.filter(id=profile.id).values()
+    res = await ScriptsRecords.filter(profile=profile.id).values()
     return JSON(res)
 
 @app.post('/script/del')
