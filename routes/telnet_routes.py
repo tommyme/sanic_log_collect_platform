@@ -100,14 +100,22 @@ async def script_update(request: sanic.Request):
     profile = await ProfileRecords.get(id=json_data['id'])
     profile.update_from_dict(query)
     await profile.save()
+    # 暂时不考虑改名的情况
     lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
     scripts = await profile.scripts.filter(sid=json_data['sid'])
-    script = scripts[0]
-    query.pop('profile')
-    script.update_from_dict(query)
-    await script.save()
+    # 考虑新建script的情况
+    if len(scripts) == 0:
+        profile = await ProfileRecords.get(id=json_data['profile'])
+        query.update({'profile': profile})
+        await ScriptsRecords(**query).save()
+    else:
+        # 通过sid筛选出来的结果唯一
+        script = scripts[0]
+        query.pop('profile')
+        script.update_from_dict(query)
+        await script.save()
     return JSON({'res': "succ"})
 
 @app.post('/script/add')
@@ -145,6 +153,7 @@ async def script_all(request: sanic.Request):
         return JSON({"lake of keys": lake_keys}, 400)
     profile = await ProfileRecords.get(**query)
     res = await ScriptsRecords.filter(profile=profile.id).values()
+    print(res)
     return JSON(res)
 
 @app.post('/script/del')
