@@ -9,6 +9,7 @@ class ProfileRecords(Model):
     name = fields.CharField(50, unique=True)
     host = fields.CharField(30)
     port = fields.CharField(10)
+    type = fields.CharField(10, default='telnet')
 
     def __str__(self):
         return self.name

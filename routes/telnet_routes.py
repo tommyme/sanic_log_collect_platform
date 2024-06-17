@@ -11,7 +11,9 @@ import time
 from utils.index import query_build, query_build_trust
 from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords
 from tortoise.contrib.pydantic import pydantic_model_creator
-
+import paramiko
+from paramiko import SSHClient
+from paramiko.client import AutoAddPolicy
 # run_async(db_init())
 
 
@@ -76,6 +78,57 @@ class telnetManager:
             self.reader.close()
             # await reader.wait_closed()
 
+class sshManager:
+    def __init__(self, ssh_client):
+        self.ssh_client = ssh_client
+        self.channel = None
+        self.websocket = None
+
+    def init_ssh(self):
+        self.channel = self.ssh_client.invoke_shell()
+        self.channel.settimeout(0.0)
+
+    def close(self):
+        if self.channel:
+            self.channel.close()
+        self.ssh_client.close()
+
+    async def read_from_ssh(self):
+        try:
+            while True:
+                await asyncio.sleep(0.1)
+                if self.channel.recv_ready():
+                    output = self.channel.recv(1024).decode('utf-8')
+                    await self.websocket.send(output)
+        except Exception as e:
+            await self.websocket.send(f"Error reading from SSH: {str(e)}")
+
+    async def read_from_websocket(self):
+        try:
+            async for message in self.websocket:
+                data = json.loads(message)
+                if 'command' in data:
+                    self.channel.send(data['command'])
+        except Exception as e:
+            await self.websocket.send(f"Error reading from WebSocket: {str(e)}")
+
+    async def handle_ssh(self, websocket):
+        self.websocket = websocket
+
+        try:
+            self.init_ssh()
+            
+            # Create tasks to read from SSH and WebSocket
+            ssh_task = asyncio.create_task(self.read_from_ssh())
+            websocket_task = asyncio.create_task(self.read_from_websocket())
+            
+            # Wait for both tasks to complete
+            await asyncio.gather(ssh_task, websocket_task)
+        except Exception as e:
+            await websocket.send(f"Error: {str(e)}")
+        finally:
+            self.close()
+
 @app.websocket('/telnet')
 async def telnet(request, ws):
     message = await ws.recv()
@@ -138,10 +191,6 @@ async def script_query(request: sanic.Request):
 
 @app.post('/script/allProfiles')
 async def profile_all(request: sanic.Request):
-    # xxbb = pydantic_model_creator(ProfileRecords, name="xxbb", include=("id", "name", "scripts"))
-    # xxx = await xxbb.from_queryset(ProfileRecords.all())
-    # x = xxx[0].model_dump()
-    # res = [{"value": i, "label": i['name']} for i in res]
     res = await ProfileRecords.all().values()
     return JSON(res)
 
@@ -164,3 +213,26 @@ async def script_del(request: sanic.Request):
         return JSON({"lake of keys": lake_keys}, 400)
     await ProfileRecords.delete(**query)
     return JSON({"res": "succ"})
+
+@app.websocket('/ssh')
+async def ssh_conn(request: sanic.Request, ws):
+    message = await ws.recv()
+    json_data = json.loads(message)
+    # 定义 SSH 和 SFTP 连接的参数
+    hostname = json_data['host']
+    port     = json_data['port']
+    username = json_data['name']
+    password = json_data['pass']
+
+    ssh_client = SSHClient()
+    ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+    try:
+        ssh_client.connect(hostname=hostname, port=port, username=username, password=password)
+        manager = sshManager(ssh_client)
+        await manager.handle_ssh(ws)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    finally:
+        ssh_client.close()

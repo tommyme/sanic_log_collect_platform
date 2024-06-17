@@ -1,21 +1,5 @@
-from tortoise.contrib.sanic import register_tortoise
-from tortoise import Tortoise, connections, fields, run_async
-from tortoise.exceptions import OperationalError
-from tortoise.models import Model
-
+from tortoise import Tortoise
+from db_config import DB_CONFIG
 async def db_init():
-    await Tortoise.init(
-        {
-            "connections": {
-                "mainAppConn": {
-                    "engine": "tortoise.backends.sqlite",
-                    "credentials": {"file_path": "db.sqlite3"},
-                },
-            },
-            "apps": {
-                "mainApp": {"models": ["models.logModel", "models.scriptModel"], "default_connection": "mainAppConn"},
-                # "events": {"models": ["__main__"], "default_connection": "second"},
-            },
-        }
-    )
+    await Tortoise.init(DB_CONFIG)
     await Tortoise.generate_schemas()

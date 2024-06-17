@@ -2,3 +2,4 @@ requests
 tortoise-orm
 sanic
 sanic-cors
+aerich
