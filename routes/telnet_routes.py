@@ -9,7 +9,7 @@ import asyncio
 import sanic
 import time
 from utils.index import query_build, query_build_trust
-from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords
+from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords, SshCreditRecords, SshCreditRecordsFields
 from tortoise.contrib.pydantic import pydantic_model_creator
 import paramiko
 from paramiko import SSHClient
@@ -142,17 +142,31 @@ async def telnet(request, ws):
     else:
         await ws.send("Invalid address or port")
 
-
-@app.post('/script/update')
-async def script_update(request: sanic.Request):
-    # 用id改
+@app.post('/profile/update')
+async def profile_update(request: sanic.Request):
     json_data: dict = request.json
     lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    profile = await ProfileRecords.get(id=json_data['id'])
-    profile.update_from_dict(query)
-    await profile.save()
+    profiles = await ProfileRecords.filter(id=json_data['id'])
+    if len(profiles) == 0:  # create new
+        profile = ProfileRecords(**query)
+        await profile.save()
+    else:                   # update exists
+        profile = profiles[0]
+        profile.update_from_dict(query)
+        await profile.save()
+    return JSON({"res": "succ"})
+
+
+
+@app.post('/script/update')
+async def script_update(request: sanic.Request):
+    json_data: dict = request.json
+    lake_keys, _ = query_build(json_data, ['profile'])
+    if lake_keys:
+        return JSON({"lake of keys": lake_keys}, 400)
+    profile = await ProfileRecords.get(id=json_data['profile'])
     # 暂时不考虑改名的情况
     lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
     if lake_keys:
@@ -174,10 +188,10 @@ async def script_update(request: sanic.Request):
 @app.post('/script/add')
 async def script_add(request: sanic.Request):
     json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
+    lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
     if lake_keys:
         return JSON({"lake of keys": lake_keys}, 400)
-    await ProfileRecords.create(**query)
+    await ScriptsRecords.create(**query)
     return JSON({"res": "succ"})
 
 @app.post('/script/query')
@@ -222,7 +236,7 @@ async def ssh_conn(request: sanic.Request, ws):
     hostname = json_data['host']
     port     = json_data['port']
     username = json_data['name']
-    password = json_data['pass']
+    password = json_data['passwd']
 
     ssh_client = SSHClient()
     ssh_client.set_missing_host_key_policy(AutoAddPolicy())
@@ -236,3 +250,13 @@ async def ssh_conn(request: sanic.Request, ws):
 
     finally:
         ssh_client.close()
+
+@app.post('/ssh/credits')
+async def ssh_credit(request: sanic.Request):
+    json_data = request.json
+    lake_keys, query = query_build(json_data, ['name'])
+    if lake_keys:
+        return JSON({"lake of keys": lake_keys}, 400)
+    profile = await ProfileRecords.get(**query)
+    res = await SshCreditRecords.filter(profile=profile.id).values()
+    return JSON(res)

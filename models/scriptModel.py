@@ -29,6 +29,23 @@ class ScriptsRecords(Model):
     class Meta:
         app = "mainApp"
 
+class SshCreditRecords(Model):
+    id = fields.IntField(pk=True)
+    name = fields.TextField()
+    passwd = fields.TextField()
+    profile = fields.ForeignKeyField('mainApp.ProfileRecords', related_name='ssh')
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        app = "mainApp"
+
+class SshCreditRecordsFields:
+    create_needed_fields = copy.copy(SshCreditRecords._meta.fields)
+    create_needed_fields.remove("id")
+
+
 class ScriptsFields:
     create_needed_fields = copy.copy(ScriptsRecords._meta.fields)
     create_needed_fields.remove("sid")
