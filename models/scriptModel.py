@@ -41,6 +41,22 @@ class SshCreditRecords(Model):
     class Meta:
         app = "mainApp"
 
+class WorkflowRecords(Model):
+    id = fields.IntField(pk=True)
+    name = fields.TextField()
+    workflow = fields.TextField()
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        app = "mainApp"
+
+class WorkflowRecordsFields:
+    fields = WorkflowRecords._meta.fields
+    create_needed_fields = copy.copy(WorkflowRecords._meta.fields)
+    create_needed_fields.remove("id")
+
 class SshCreditRecordsFields:
     create_needed_fields = copy.copy(SshCreditRecords._meta.fields)
     create_needed_fields.remove("id")
@@ -51,5 +67,6 @@ class ScriptsFields:
     create_needed_fields.remove("sid")
 
 class ProfileRecordsFields:
+    fields = ProfileRecords._meta.fields
     create_needed_fields = copy.copy(ProfileRecords._meta.fields)
     create_needed_fields.remove("id")

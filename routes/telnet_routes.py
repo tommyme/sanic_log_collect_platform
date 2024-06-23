@@ -1,21 +1,17 @@
 from app import app
 from sanic.response import text as TEXT, json as JSON
-from tortoise import run_async
-from db_handle import db_init
 import json
 import telnetlib3
 from telnetlib3 import TelnetReader, TelnetWriter
 import asyncio
 import sanic
 import time
-from utils.index import query_build, query_build_trust
-from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords, SshCreditRecords, SshCreditRecordsFields
-from tortoise.contrib.pydantic import pydantic_model_creator
+from modules.workflow import run_step
+from routes.decos import validate_lake_keys
+from models.scriptModel import ProfileRecords, ProfileRecordsFields, ScriptsFields, ScriptsRecords, SshCreditRecords, SshCreditRecordsFields, WorkflowRecords, WorkflowRecordsFields
 import paramiko
 from paramiko import SSHClient
 from paramiko.client import AutoAddPolicy
-# run_async(db_init())
-
 
 class telnetManager:
     websocket: any
@@ -143,17 +139,14 @@ async def telnet(request, ws):
         await ws.send("Invalid address or port")
 
 @app.post('/profile/update')
-async def profile_update(request: sanic.Request):
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ProfileRecordsFields.create_needed_fields)
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
-    profiles = await ProfileRecords.filter(id=json_data['id'])
-    if len(profiles) == 0:  # create new
-        profile = ProfileRecords(**query)
-        await profile.save()
-    else:                   # update exists
-        profile = profiles[0]
+@validate_lake_keys(ProfileRecordsFields.create_needed_fields)
+async def profile_update(request: sanic.Request, query):
+    # 这里用json_data的id; query里面没有id
+    new_data = request.json.get('id') is None
+    if new_data:
+        profile = await ProfileRecords.create(**query)
+    else:
+        profile = await ProfileRecords.get(id=request.json['id'])
         profile.update_from_dict(query)
         await profile.save()
     return JSON({"res": "succ"})
@@ -161,16 +154,12 @@ async def profile_update(request: sanic.Request):
 
 
 @app.post('/script/update')
-async def script_update(request: sanic.Request):
+@validate_lake_keys(['profile'])
+@validate_lake_keys(ScriptsFields.create_needed_fields)
+async def script_update(request: sanic.Request, query):
     json_data: dict = request.json
-    lake_keys, _ = query_build(json_data, ['profile'])
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
     profile = await ProfileRecords.get(id=json_data['profile'])
     # 暂时不考虑改名的情况
-    lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
     scripts = await profile.scripts.filter(sid=json_data['sid'])
     # 考虑新建script的情况
     if len(scripts) == 0:
@@ -186,20 +175,14 @@ async def script_update(request: sanic.Request):
     return JSON({'res': "succ"})
 
 @app.post('/script/add')
-async def script_add(request: sanic.Request):
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ScriptsFields.create_needed_fields)
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
+@validate_lake_keys(ScriptsFields.create_needed_fields)
+async def script_add(request: sanic.Request, query):
     await ScriptsRecords.create(**query)
     return JSON({"res": "succ"})
 
 @app.post('/script/query')
-async def script_query(request: sanic.Request):
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ['name'])
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
+@validate_lake_keys(['name'])
+async def script_query(request: sanic.Request, query):
     res = await ProfileRecords.filter(**query).values()
     return JSON(res)
 
@@ -209,23 +192,16 @@ async def profile_all(request: sanic.Request):
     return JSON(res)
 
 @app.post("/script/allScripts")
-async def script_all(request: sanic.Request):
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ['name'])
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
+@validate_lake_keys(['name'])
+async def script_all(request: sanic.Request, query):
     profile = await ProfileRecords.get(**query)
     res = await ScriptsRecords.filter(profile=profile.id).values()
-    print(res)
     return JSON(res)
 
 @app.post('/script/del')
-async def script_del(request: sanic.Request):
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, ['name'])
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
-    await ProfileRecords.delete(**query)
+@validate_lake_keys(ScriptsFields.create_needed_fields)
+async def script_del(request: sanic.Request, query):
+    await ScriptsRecords.delete(**query)
     return JSON({"res": "succ"})
 
 @app.websocket('/ssh')
@@ -252,11 +228,40 @@ async def ssh_conn(request: sanic.Request, ws):
         ssh_client.close()
 
 @app.post('/ssh/credits')
-async def ssh_credit(request: sanic.Request):
-    json_data = request.json
-    lake_keys, query = query_build(json_data, ['name'])
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
+@validate_lake_keys(['name'])
+async def ssh_credit(request: sanic.Request, query):
     profile = await ProfileRecords.get(**query)
     res = await SshCreditRecords.filter(profile=profile.id).values()
     return JSON(res)
+
+
+@app.post("/workflow/all")
+async def workflow_all(request: sanic.Request):
+    origin = await WorkflowRecords.all().values()
+    result = []
+    for item in origin:
+        item['workflow'] = json.loads(item['workflow'])
+        result.append(item)
+    return JSON(result)
+
+@app.post("/workflow/save")
+@validate_lake_keys(WorkflowRecordsFields.create_needed_fields)
+async def workflow_save(request: sanic.Request, query):
+    # 这里用json_data的id; query里面没有id
+    new_data = request.json.get('id') is None
+    if new_data:
+        workflow = await WorkflowRecords.create(**query)
+    else:
+        workflow = await WorkflowRecords.get(id=request.json['id'])
+        workflow.update_from_dict(query)
+        await workflow.save()
+    return JSON({"res": "succ"})
+
+
+@app.post("/workflow/run")
+async def workflow_run(request: sanic.Request):
+    # 直接传对应的step进来run, res是对应step的res
+    json_data = request.json
+    res = await run_step(json_data)
+    return JSON(res)
+

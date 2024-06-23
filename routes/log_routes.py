@@ -8,6 +8,7 @@ from db_handle import db_init
 import json
 import time
 from utils.index import query_build, query_build_trust
+from routes.decos import validate_lake_keys
 run_async(db_init())
 
 
@@ -16,15 +17,9 @@ async def some_get(request: sanic.Request):
     return TEXT('get')
 
 @app.post('/addLog')  # body json query
-async def some_post(request: sanic.Request):
-    st = time.time()
-    json_data: dict = request.json
-    lake_keys, query = query_build(json_data, LogRecordsFields.create_needed_fields)
-    if lake_keys:
-        return JSON({"lake of keys": lake_keys}, 400)
+@validate_lake_keys(LogRecordsFields.create_needed_fields)
+async def some_post(request: sanic.Request, query: dict):
     await LogRecords.create(**query)
-    ed = time.time()
-    print(ed - st)
     return JSON({"res": "succ"})
 
 @app.get("/logs")
